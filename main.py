@@ -18,6 +18,7 @@ class GameManager:
         # Gesture state shared with the game loop.
         self.current_gesture = None
         self.is_speed_boost = False
+        self.camera_fps = 0.0
 
     def initialize_camera(self) -> bool:
         """Initialize webcam for gesture input."""
@@ -33,6 +34,7 @@ class GameManager:
 
     def gesture_detection_loop(self):
         """Read webcam frames and update current gesture state."""
+        previous_frame_time = time.time()
         while self.running and self.cap is not None:
             ret, frame = self.cap.read()
             if not ret:
@@ -41,11 +43,17 @@ class GameManager:
             frame = cv2.flip(frame, 1)
             gesture, pinch, annotated_frame = self.gesture_controller.detect_gestures(frame)
 
+            now = time.time()
+            dt = max(1e-6, now - previous_frame_time)
+            previous_frame_time = now
+            self.camera_fps = 1.0 / dt
+
             self.current_gesture = gesture
             self.is_speed_boost = pinch
 
             cv2.imshow("Nokia Snake - Gesture Control", annotated_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
+                self.running = False
                 break
 
             time.sleep(0.01)
@@ -72,6 +80,8 @@ class GameManager:
                 action = self.game.process_event(event)
                 if action == "quit":
                     self.running = False
+
+            self.game.set_runtime_stats(self.camera_fps, self.current_gesture)
 
             if self.game.game_state == GameState.PLAYING:
                 if self.current_gesture:
