@@ -12,6 +12,8 @@ class UIManager:
 
         self.master_volume = 0.6
         self.sound_enabled = True
+        self.selected_mode_label = "Classic"
+        self.selected_skin_label = "Classic"
 
         self.COLORS = {
             "bg_top": (37, 62, 12),
@@ -27,10 +29,13 @@ class UIManager:
             "danger_hover": (220, 88, 64),
         }
 
+        # New order: Start, Mode, Skin, Settings, Quit
         self.main_buttons = {
-            "start": pygame.Rect(self.width // 2 - 120, 250, 240, 56),
-            "settings": pygame.Rect(self.width // 2 - 120, 324, 240, 56),
-            "quit": pygame.Rect(self.width // 2 - 120, 398, 240, 56),
+            "start": pygame.Rect(self.width // 2 - 120, 210, 240, 56),
+            "mode": pygame.Rect(self.width // 2 - 120, 276, 240, 50),
+            "skin": pygame.Rect(self.width // 2 - 120, 332, 240, 50),
+            "settings": pygame.Rect(self.width // 2 - 120, 388, 240, 56),
+            "quit": pygame.Rect(self.width // 2 - 120, 454, 240, 56),
         }
 
         self.settings_buttons = {
@@ -41,8 +46,8 @@ class UIManager:
         }
 
         self.game_over_buttons = {
-            "restart": pygame.Rect(self.width // 2 - 120, 362, 240, 56),
-            "main_menu": pygame.Rect(self.width // 2 - 120, 436, 240, 56),
+            "restart": pygame.Rect(self.width // 2 - 120, 388, 240, 56),
+            "main_menu": pygame.Rect(self.width // 2 - 120, 458, 240, 56),
         }
 
         self.button_click_sound = self._load_button_click()
@@ -78,6 +83,10 @@ class UIManager:
     def set_sound_enabled(self, enabled: bool):
         self.sound_enabled = bool(enabled)
         self._apply_button_volume()
+
+    def set_main_menu_labels(self, mode_label: str, skin_label: str):
+        self.selected_mode_label = mode_label
+        self.selected_skin_label = skin_label
 
     def _play_click(self):
         if self.button_click_sound is not None and self.sound_enabled:
@@ -116,19 +125,24 @@ class UIManager:
     def draw_main_menu(self, surface):
         self._draw_background(surface)
 
-        panel = pygame.Rect(self.width // 2 - 230, 86, 460, 450)
+        panel = pygame.Rect(self.width // 2 - 240, 66, 480, 520)
         self._draw_panel(surface, panel)
 
-        title = self.title_font.render("Gesture Snake Game", True, self.COLORS["title"])
-        title_rect = title.get_rect(center=(self.width // 2, 148))
+        title = self.title_font.render("Snake Game", True, self.COLORS["title"])
+        title_rect = title.get_rect(center=(self.width // 2, 130))
         surface.blit(title, title_rect)
 
-        subtitle = self.text_font.render("Gesture Edition", True, self.COLORS["text"])
-        subtitle_rect = subtitle.get_rect(center=(self.width // 2, 186))
+        subtitle = self.text_font.render("Gesture Control", True, self.COLORS["text"])
+        subtitle_rect = subtitle.get_rect(center=(self.width // 2, 168))
         surface.blit(subtitle, subtitle_rect)
 
         mouse_pos = pygame.mouse.get_pos()
+        mode_text = f"Mode: {self.selected_mode_label}"
+        skin_text = f"Skin: {self.selected_skin_label}"
+        # Draw in new order: Start, Mode, Skin, Settings, Quit
         self._draw_button(surface, self.main_buttons["start"], "Start Game", self.main_buttons["start"].collidepoint(mouse_pos))
+        self._draw_button(surface, self.main_buttons["mode"], mode_text, self.main_buttons["mode"].collidepoint(mouse_pos))
+        self._draw_button(surface, self.main_buttons["skin"], skin_text, self.main_buttons["skin"].collidepoint(mouse_pos))
         self._draw_button(surface, self.main_buttons["settings"], "Settings", self.main_buttons["settings"].collidepoint(mouse_pos))
         self._draw_button(surface, self.main_buttons["quit"], "Quit", self.main_buttons["quit"].collidepoint(mouse_pos), is_danger=True)
 
@@ -136,7 +150,17 @@ class UIManager:
         if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
             return None
 
+        if self.main_buttons["mode"].collidepoint(event.pos):
+            self._play_click()
+            return "cycle_mode"
+
+        if self.main_buttons["skin"].collidepoint(event.pos):
+            self._play_click()
+            return "cycle_skin"
+
         for action, rect in self.main_buttons.items():
+            if action in ("mode", "skin"):
+                continue
             if rect.collidepoint(event.pos):
                 self._play_click()
                 return action
@@ -208,21 +232,29 @@ class UIManager:
 
         return None
 
-    def draw_game_over_overlay(self, surface, score: int):
+    def draw_game_over_overlay(self, surface, score: int, high_score: int, mode_label: str):
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 170))
         surface.blit(overlay, (0, 0))
 
-        panel = pygame.Rect(self.width // 2 - 250, 180, 500, 340)
+        panel = pygame.Rect(self.width // 2 - 250, 150, 500, 390)
         self._draw_panel(surface, panel)
 
         title = self.title_font.render("Game Over", True, self.COLORS["title"])
-        title_rect = title.get_rect(center=(self.width // 2, 236))
+        title_rect = title.get_rect(center=(self.width // 2, 206))
         surface.blit(title, title_rect)
 
         score_text = self.button_font.render(f"Score: {score}", True, self.COLORS["text"])
-        score_rect = score_text.get_rect(center=(self.width // 2, 286))
+        score_rect = score_text.get_rect(center=(self.width // 2, 250))
         surface.blit(score_text, score_rect)
+
+        high_score_text = self.text_font.render(f"High Score: {high_score}", True, self.COLORS["text"])
+        high_score_rect = high_score_text.get_rect(center=(self.width // 2, 282))
+        surface.blit(high_score_text, high_score_rect)
+
+        mode_text = self.text_font.render(f"Mode: {mode_label}", True, self.COLORS["text"])
+        mode_rect = mode_text.get_rect(center=(self.width // 2, 308))
+        surface.blit(mode_text, mode_rect)
 
         mouse_pos = pygame.mouse.get_pos()
         self._draw_button(surface, self.game_over_buttons["restart"], "Restart", self.game_over_buttons["restart"].collidepoint(mouse_pos))
