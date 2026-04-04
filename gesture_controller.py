@@ -95,6 +95,7 @@ class GestureController:
         self.current_direction = None
         self.gesture_cooldown = 0
         self.max_cooldown = 6
+        self.pause_cooldown = 0
 
         self.landmark_history = deque(maxlen=5)
 
@@ -180,6 +181,18 @@ class GestureController:
 
         return (pinch_distance / hand_scale) < 0.28
 
+    def _is_pause_gesture(self, hand_landmarks) -> bool:
+        wrist = hand_landmarks[WRIST]
+        tips = [THUMB_TIP, INDEX_FINGER_TIP, MIDDLE_FINGER_TIP, RING_FINGER_TIP, PINKY_TIP]
+
+        tips_above_wrist = 0
+        for idx in tips:
+            if hand_landmarks[idx].y < wrist.y:
+                tips_above_wrist += 1
+
+        spread = abs(hand_landmarks[THUMB_TIP].x - hand_landmarks[PINKY_TIP].x)
+        return tips_above_wrist >= 4 and spread > 0.45
+
     def detect_gestures(self, frame: np.ndarray) -> Tuple[Optional[str], bool, np.ndarray]:
         mp_image = MPImage(image_format=ImageFormat.SRGB, data=frame)
         results = self.hands.detect(mp_image)
@@ -196,19 +209,29 @@ class GestureController:
             else:
                 smooth = landmarks
 
-            gesture = self._get_gesture(smooth)
+            if self.pause_cooldown > 0:
+                self.pause_cooldown -= 1
+
+            if self._is_pause_gesture(smooth) and self.pause_cooldown == 0:
+                gesture = "PAUSE"
+                self.pause_cooldown = 24
+            else:
+                gesture = self._get_gesture(smooth)
+
             pinch = self._is_pinching(smooth)
             self._draw_hand_landmarks(frame, smooth)
         else:
             self.landmark_history.clear()
             self.current_direction = None
             self.gesture_cooldown = 0
+            self.pause_cooldown = 0
 
         return gesture, pinch, frame
 
     def reset_gesture_state(self):
         self.current_direction = None
         self.gesture_cooldown = 0
+        self.pause_cooldown = 0
         self.landmark_history.clear()
 
     def close(self):
