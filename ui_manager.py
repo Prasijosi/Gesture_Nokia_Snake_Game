@@ -16,17 +16,19 @@ class UIManager:
         self.selected_skin_label = "Classic"
 
         self.COLORS = {
-            "bg_top": (37, 62, 12),
-            "bg_bottom": (110, 142, 20),
-            "panel": (22, 36, 8),
-            "panel_border": (176, 210, 62),
-            "button": (140, 171, 22),
-            "button_hover": (188, 220, 50),
-            "button_text": (20, 30, 8),
-            "title": (235, 245, 220),
-            "text": (215, 235, 168),
-            "danger": (184, 68, 52),
-            "danger_hover": (220, 88, 64),
+            # Soft, clean, earth-inspired palette
+            "bg_top": (200, 210, 220),        # Misty blue-grey
+            "bg_bottom": (160, 170, 180),     # Slightly deeper mist
+            "panel": (235, 235, 230),         # Off-white panel
+            "panel_shadow": (180, 185, 190),  # Panel shadow
+            "panel_border": (120, 130, 140),  # Stone grey border
+            "button": (210, 215, 220),        # Light stone
+            "button_hover": (180, 200, 210),  # Slightly blue hover
+            "button_text": (40, 50, 60),      # Deep slate
+            "title": (40, 50, 60),            # Deep slate
+            "text": (70, 80, 90),             # Muted slate
+            "danger": (180, 80, 60),          # Muted red
+            "danger_hover": (210, 110, 90),   # Lighter muted red
         }
 
         # New order: Start, Mode, Skin, Settings, Quit
@@ -93,9 +95,9 @@ class UIManager:
             self.button_click_sound.play()
 
     def _draw_background(self, surface):
+        # Vertical gradient
         top = self.COLORS["bg_top"]
         bottom = self.COLORS["bg_bottom"]
-
         for y in range(self.height):
             t = y / max(1, self.height - 1)
             color = (
@@ -105,9 +107,24 @@ class UIManager:
             )
             pygame.draw.line(surface, color, (0, y), (self.width, y))
 
+        # Add subtle mist/fog overlay
+        mist = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        for i in range(3):
+            alpha = 28 + i * 10
+            pygame.draw.ellipse(
+                mist,
+                (220, 225, 230, alpha),
+                pygame.Rect(-120 + i * 80, 60 + i * 90, self.width + 180, 180 + i * 40),
+            )
+        surface.blit(mist, (0, 0))
+
     def _draw_panel(self, surface, rect):
-        pygame.draw.rect(surface, self.COLORS["panel"], rect, border_radius=14)
-        pygame.draw.rect(surface, self.COLORS["panel_border"], rect, 2, border_radius=14)
+        # Draw shadow
+        shadow_rect = rect.move(0, 8)
+        pygame.draw.rect(surface, self.COLORS["panel_shadow"], shadow_rect, border_radius=18)
+        # Draw panel
+        pygame.draw.rect(surface, self.COLORS["panel"], rect, border_radius=16)
+        pygame.draw.rect(surface, self.COLORS["panel_border"], rect, 2, border_radius=16)
 
     def _draw_button(self, surface, rect, label: str, is_hovered: bool, is_danger: bool = False):
         if is_danger:
@@ -115,6 +132,10 @@ class UIManager:
         else:
             base_color = self.COLORS["button_hover"] if is_hovered else self.COLORS["button"]
 
+        # Soft shadow
+        shadow_rect = rect.move(0, 4)
+        pygame.draw.rect(surface, self.COLORS["panel_shadow"], shadow_rect, border_radius=12)
+        # Button
         pygame.draw.rect(surface, base_color, rect, border_radius=10)
         pygame.draw.rect(surface, self.COLORS["panel_border"], rect, 2, border_radius=10)
 

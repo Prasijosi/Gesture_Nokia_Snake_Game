@@ -243,10 +243,21 @@ class SnakeGame:
 
     def _generate_maze_obstacles(self):
         obstacles = set()
+        # Reserve a clear rectangle in the center for the snake spawn and first moves
+        center_x = self.grid_width // 2
+        center_y = self.grid_height // 2
+        clear_radius_x = 3  # 3 cells left/right
+        clear_radius_y = 2  # 2 cells up/down
+        def is_in_spawn_area(x, y):
+            return (
+                center_x - clear_radius_x <= x <= center_x + clear_radius_x
+                and center_y - clear_radius_y <= y <= center_y + clear_radius_y
+            )
+
         for y in range(4, self.grid_height - 4):
             if y % 4 == 0:
                 for x in range(3, self.grid_width - 3):
-                    if x in (self.grid_width // 2 - 1, self.grid_width // 2, self.grid_width // 2 + 1):
+                    if is_in_spawn_area(x, y):
                         continue
                     obstacles.add((x, y))
         return obstacles
@@ -644,22 +655,52 @@ class SnakeGame:
         else:
             self.snake.pop()
 
-    def _draw_grid(self):
-        for x in range(0, self.width, self.grid_size):
-            pygame.draw.line(self.screen, self.GRID_COLOR, (x, 0), (x, self.height))
-        for y in range(0, self.height, self.grid_size):
-            pygame.draw.line(self.screen, self.GRID_COLOR, (0, y), (self.width, y))
+    def _draw_misty_background(self):
+        # Soft vertical gradient
+        top = (200, 210, 220)
+        bottom = (160, 170, 180)
+        for y in range(self.height):
+            t = y / max(1, self.height - 1)
+            color = (
+                int(top[0] * (1 - t) + bottom[0] * t),
+                int(top[1] * (1 - t) + bottom[1] * t),
+                int(top[2] * (1 - t) + bottom[2] * t),
+            )
+            pygame.draw.line(self.screen, color, (0, y), (self.width, y))
+
+        # Mist/fog overlays
+        mist = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        for i in range(3):
+            alpha = 28 + i * 10
+            pygame.draw.ellipse(
+                mist,
+                (220, 225, 230, alpha),
+                pygame.Rect(-120 + i * 80, 60 + i * 90, self.width + 180, 180 + i * 40),
+            )
+        self.screen.blit(mist, (0, 0))
 
     def _draw_obstacles(self):
+        # Render obstacles as organic stones/bamboo
         for x, y in self.obstacles:
-            rect = pygame.Rect(
-                x * self.grid_size + 2,
-                y * self.grid_size + 2,
-                self.grid_size - 4,
-                self.grid_size - 4,
+            px = x * self.grid_size + self.grid_size // 2
+            py = y * self.grid_size + self.grid_size // 2
+            stone_color = (170, 175, 180)
+            edge_color = (120, 130, 140)
+            # Slight random size/shape for organic look
+            radius = self.grid_size // 2 - 2 + random.randint(-2, 2)
+            offset_x = random.randint(-2, 2)
+            offset_y = random.randint(-2, 2)
+            pygame.draw.ellipse(
+                self.screen,
+                stone_color,
+                pygame.Rect(px - radius + offset_x, py - radius + offset_y, radius * 2, radius * 2),
             )
-            pygame.draw.rect(self.screen, (70, 70, 70), rect, border_radius=4)
-            pygame.draw.rect(self.screen, (120, 120, 120), rect, 1, border_radius=4)
+            pygame.draw.ellipse(
+                self.screen,
+                edge_color,
+                pygame.Rect(px - radius + offset_x, py - radius + offset_y, radius * 2, radius * 2),
+                2,
+            )
 
     def _draw_snake(self):
         skin = self.snake_skins[self.current_skin]
@@ -669,25 +710,25 @@ class SnakeGame:
         eye_color = skin["eye"]
 
         for index, (x, y) in enumerate(self.snake):
-            px = x * self.grid_size
-            py = y * self.grid_size
+            px = x * self.grid_size + self.grid_size // 2
+            py = y * self.grid_size + self.grid_size // 2
 
             scale = 1.0
             if self.growth_pending > 0 and index == 0:
                 scale = 1.08
 
-            pad = max(1, int((1.0 - min(scale, 1.08)) * 5))
-            rect = pygame.Rect(px + pad, py + pad, self.grid_size - 2 * pad, self.grid_size - 2 * pad)
-
+            radius = int((self.grid_size // 2 - 2) * scale)
             color = head_color if index == 0 else body_color
-            pygame.draw.rect(self.screen, color, rect, border_radius=5)
-            pygame.draw.rect(self.screen, border_color, rect, 1, border_radius=5)
+            # Soft shadow
+            pygame.draw.circle(self.screen, (180, 185, 190), (px, py + 3), radius + 2)
+            pygame.draw.circle(self.screen, color, (px, py), radius)
+            pygame.draw.circle(self.screen, border_color, (px, py), radius, 2)
 
             if index == 0:
-                eye_l = pygame.Rect(px + 5, py + 5, 3, 3)
-                eye_r = pygame.Rect(px + 12, py + 5, 3, 3)
-                pygame.draw.rect(self.screen, eye_color, eye_l)
-                pygame.draw.rect(self.screen, eye_color, eye_r)
+                # Eyes
+                eye_offset = radius // 2
+                pygame.draw.circle(self.screen, eye_color, (px - eye_offset // 2, py - eye_offset // 2), 3)
+                pygame.draw.circle(self.screen, eye_color, (px + eye_offset // 2, py - eye_offset // 2), 3)
 
     def _draw_food_items(self):
         now = time.time()
@@ -697,18 +738,24 @@ class SnakeGame:
             py = y * self.grid_size + self.grid_size // 2
 
             pulse = 1.0 + 0.15 * math.sin(now * 6.0 + food["phase"])
-            radius = max(4, int((self.grid_size // 2 - 3) * pulse))
+            radius = max(5, int((self.grid_size // 2 - 2) * pulse))
 
             if food["kind"] == "apple":
+                # Apple: soft red with a highlight
                 pygame.draw.circle(self.screen, food["color"], (px, py), radius)
-                pygame.draw.rect(self.screen, (90, 60, 20), pygame.Rect(px - 1, py - radius - 2, 2, 5))
+                pygame.draw.circle(self.screen, (255, 255, 255), (px - 3, py - 3), 3)
+                pygame.draw.rect(self.screen, (120, 90, 40), pygame.Rect(px - 1, py - radius - 2, 2, 5))
             elif food["kind"] == "banana":
+                # Banana: gentle arc
                 banana_rect = pygame.Rect(px - radius, py - radius // 2, radius * 2, radius)
                 pygame.draw.arc(self.screen, food["color"], banana_rect, 0.2, 2.8, 4)
+                pygame.draw.arc(self.screen, (255, 255, 255), banana_rect, 0.5, 1.2, 2)
             else:
+                # Berry: cluster of circles
                 pygame.draw.circle(self.screen, food["color"], (px - 3, py), max(3, radius - 3))
                 pygame.draw.circle(self.screen, food["color"], (px + 3, py), max(3, radius - 3))
                 pygame.draw.circle(self.screen, food["color"], (px, py - 4), max(3, radius - 3))
+                pygame.draw.circle(self.screen, (255, 255, 255), (px, py - 4), 1)
 
     def _draw_power_up(self):
         if self.power_up is None:
@@ -805,8 +852,7 @@ class SnakeGame:
             pygame.display.flip()
             return
 
-        self.screen.fill(self.BLACK)
-        self._draw_grid()
+        self._draw_misty_background()
         self._draw_obstacles()
         self._draw_food_items()
         self._draw_power_up()
