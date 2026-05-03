@@ -19,6 +19,7 @@ class GameManager:
         self.current_gesture = None
         self.is_speed_boost = False
         self.camera_fps = 0.0
+        self.current_finger = None
 
     def initialize_camera(self) -> bool:
         """Initialize webcam for gesture input."""
@@ -43,6 +44,9 @@ class GameManager:
             frame = cv2.flip(frame, 1)
             gesture, pinch, annotated_frame = self.gesture_controller.detect_gestures(frame)
 
+            # also store the predicted fingertip (normalised 0..1)
+            self.current_finger = getattr(self.gesture_controller, "last_predicted_tip", None)
+
             now = time.time()
             dt = max(1e-6, now - previous_frame_time)
             previous_frame_time = now
@@ -65,6 +69,8 @@ class GameManager:
         if self.camera_enabled:
             self.gesture_thread = threading.Thread(target=self.gesture_detection_loop, daemon=True)
             self.gesture_thread.start()
+            # when camera is active prefer free pixel-based movement
+            self.game.camera_free_movement = True
 
         print("Nokia Snake Game Started")
         print("Mouse: menu and buttons")
@@ -81,7 +87,8 @@ class GameManager:
                 if action == "quit":
                     self.running = False
 
-            self.game.set_runtime_stats(self.camera_fps, self.current_gesture)
+            # pass finger position for optional free movement
+            self.game.set_runtime_stats(self.camera_fps, self.current_gesture, self.current_finger)
 
             if self.game.game_state == GameState.PLAYING:
                 if self.current_gesture:
