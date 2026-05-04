@@ -54,7 +54,7 @@ def check_webcam():
 def download_model():
     """Download the MediaPipe hand landmarker model if not present"""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    models_dir = os.path.join(script_dir, "models")
+    models_dir = os.path.join(script_dir, "snake_game", "models")
     model_path = os.path.join(models_dir, "hand_landmarker.task")
     
     # Check if model already exists and is valid

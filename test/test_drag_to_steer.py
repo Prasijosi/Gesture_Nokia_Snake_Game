@@ -1,6 +1,6 @@
 import unittest
 
-from gesture_tracking import DragToSteerTracker, DRAG_THRESHOLD, HAND_ABSENCE_FRAMES
+from snake_game.control.gesture_tracking import DragToSteerTracker, DRAG_THRESHOLD, HAND_ABSENCE_FRAMES
 
 
 class TestDragToSteerTracker(unittest.TestCase):

@@ -5,9 +5,9 @@ from typing import Optional
 
 import cv2
 import pygame
-from gesture_controller import GestureController
-from latency_reporter import LatencyReporter
-from snake_game import GameState, SnakeGame
+from snake_game.control.gesture_controller import GestureController
+from snake_game.utils.latency_reporter import LatencyReporter
+from snake_game.game.core import GameState, SnakeGame
 
 
 ENABLE_CAMERA_FREE_MOVEMENT = False

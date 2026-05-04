@@ -3,7 +3,7 @@ import unittest
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
-from snake_game import GameState, SnakeGame
+from snake_game.game.core import GameState, SnakeGame
 
 
 class TestFreeMovement(unittest.TestCase):

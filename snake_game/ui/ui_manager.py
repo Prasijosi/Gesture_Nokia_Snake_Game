@@ -59,7 +59,7 @@ class UIManager:
         if pygame.mixer.get_init() is None:
             return None
 
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds", "GameStart.mp3")
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sounds", "GameStart.mp3")
         if not os.path.exists(path):
             return None
 
