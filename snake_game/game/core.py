@@ -99,7 +99,7 @@ class SnakeGame:
             },
         }
 
-        self.base_speed = 8
+        self.base_speed = 10
         self.camera_boost_speed = 14
         self.camera_speed_boost = False
 
