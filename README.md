@@ -1,8 +1,11 @@
 # 🐍 Nokia Snake Game - Gesture Control
 
-[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://python.org)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)](https://opencv.org)
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-0.10+-orange.svg)](https://mediapipe.dev)
+[![Pygame](https://img.shields.io/badge/Pygame-2.5+-blue.svg)](https://pygame.org)
+[![Numpy](https://img.shields.io/badge/Numpy-1.24+-blue.svg)](https://numpy.org)
+
 
 **Created by Prashiddha Joshi**
 
