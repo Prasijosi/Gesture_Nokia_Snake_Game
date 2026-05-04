@@ -8,7 +8,7 @@ from typing import Optional, Tuple
 
 import pygame
 
-from ui_manager import UIManager
+from snake_game.ui.ui_manager import UIManager
 
 
 class GameState(Enum):
@@ -157,7 +157,7 @@ class SnakeGame:
         if pygame.mixer.get_init() is None:
             return None
 
-        base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds")
+        base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sounds")
         for filename in filenames:
             sound_path = os.path.join(base_dir, filename)
             if not os.path.exists(sound_path):
@@ -249,8 +249,8 @@ class SnakeGame:
         # Reserve a clear rectangle in the center for the snake spawn and first moves
         center_x = self.grid_width // 2
         center_y = self.grid_height // 2
-        clear_radius_x = 3  # 3 cells left/right
-        clear_radius_y = 2  # 2 cells up/down
+        clear_radius_x = 3  
+        clear_radius_y = 2  
         def is_in_spawn_area(x, y):
             return (
                 center_x - clear_radius_x <= x <= center_x + clear_radius_x

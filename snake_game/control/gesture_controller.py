@@ -1,9 +1,3 @@
-"""
-Gesture recognition with MediaPipe hand tracking.
-Drag-to-steer: set an anchor when the hand appears, then steer based on the
-dominant displacement axis once the drag exceeds the threshold.
-"""
-
 import math
 import os
 import urllib.request
@@ -15,8 +9,13 @@ from mediapipe import Image as MPImage, ImageFormat
 from mediapipe.tasks.python.core.base_options import BaseOptions
 from mediapipe.tasks.python.vision.hand_landmarker import HandLandmarker, HandLandmarkerOptions
 
-from gesture_tracking import DragToSteerTracker, ema_alpha_from_frames
+from snake_game.control.gesture_tracking import DragToSteerTracker, ema_alpha_from_frames
 
+"""
+Gesture recognition with MediaPipe hand tracking.
+Drag-to-steer: set an anchor when the hand appears, then steer based on the
+dominant displacement axis once the drag exceeds the threshold.
+"""
 
 HAND_LANDMARKER_MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
@@ -61,7 +60,7 @@ def download_model(url: str, dest_path: str) -> bool:
 class GestureController:
     def __init__(self, smoothing_frames: int = 5):
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        models_dir = os.path.join(script_dir, "models")
+        models_dir = os.path.join(os.path.dirname(script_dir), "models")
         self.hand_model_path = os.path.join(models_dir, "hand_landmarker.task")
 
         if not download_model(HAND_LANDMARKER_MODEL_URL, self.hand_model_path):
@@ -81,12 +80,8 @@ class GestureController:
         self.drag_tracker = DragToSteerTracker(ema_alpha=ema_alpha)
         self.pause_cooldown = 0
 
-        # Expose the last predicted tip for main.py
         self.last_predicted_tip: Optional[Tuple[float, float]] = None
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _draw_hand_landmarks(self, frame: np.ndarray, hand_landmarks) -> None:
         h, w = frame.shape[:2]
@@ -124,10 +119,7 @@ class GestureController:
         spread = abs(hand_landmarks[THUMB_TIP].x - hand_landmarks[PINKY_TIP].x)
         return tips_above >= 4 and spread > 0.45
 
-    # ------------------------------------------------------------------
-    # Public API – returns finger position, pinch, pause, direction
-    # ------------------------------------------------------------------
-
+    # Public API 
     def detect_gestures(self, frame: np.ndarray) -> Tuple[Optional[str], bool, np.ndarray]:
         """
         Returns:
@@ -144,7 +136,7 @@ class GestureController:
         if results.hand_landmarks:
             landmarks = results.hand_landmarks[0]
 
-            # --- Index finger tip extraction ---
+            # Index finger tip extraction 
             raw_x = landmarks[INDEX_FINGER_TIP].x
             raw_y = landmarks[INDEX_FINGER_TIP].y
             direction = self.drag_tracker.update((raw_x, raw_y))
@@ -154,7 +146,7 @@ class GestureController:
             # Draw finger cursor
             self._draw_finger_cursor(frame, finger_pos)
 
-            # --- Gesture recognition (drag-to-steer + pause) ---
+            # Gesture recognition (drag-to-steer + pause) 
             if self.pause_cooldown > 0:
                 self.pause_cooldown -= 1
 
