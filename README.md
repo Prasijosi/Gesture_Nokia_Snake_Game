@@ -97,13 +97,21 @@ python main.py
 ```
 nokia-snake-gesture-control/
 ├── main.py                 # Main game entry point
-├── snake_game.py          # Nokia Snake game implementation
-├── gesture_controller.py  # Hand gesture recognition (MediaPipe Tasks API)
-├── setup.py              # Automatic dependency installer
-├── requirements.txt      # Python package dependencies
-├── models/               # Auto-downloaded ML models
-│   └── hand_landmarker.task  # Hand detection model
-└── README.md            # This file
+├── setup.py                # Automatic dependency installer
+├── requirements.txt        # Python package dependencies
+├── README.md               # This file
+└── snake_game/             # Core game logic and UI
+    ├── game/               # Game engine and core mechanics
+    │   └── core.py
+    ├── control/            # Hand gesture recognition and tracking
+    │   ├── gesture_controller.py
+    │   └── gesture_tracking.py
+    ├── ui/                 # UI management and overlays
+    │   └── ui_manager.py
+    ├── utils/              # Utility classes (latency reporting)
+    │   └── latency_reporter.py
+    ├── sounds/             # Sound assets
+    └── models/             # Auto-downloaded ML models
 ```
 
 ## Technical Details
