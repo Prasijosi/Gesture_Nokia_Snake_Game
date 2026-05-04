@@ -4,7 +4,7 @@ import os
 import random
 import time
 from enum import Enum
-from typing import Optional
+from typing import Optional, Tuple
 
 import pygame
 
@@ -137,6 +137,9 @@ class SnakeGame:
 
         self.camera_fps = 0.0
         self.gesture_indicator = "None"
+        # Camera-driven free movement switch + last finger pos (normalised)
+        self.camera_free_movement = False
+        self.camera_finger_pos = None
 
         self.mode_start_time = time.time()
         self.logic_time = time.time()
@@ -370,6 +373,11 @@ class SnakeGame:
         self._spawn_food_items()
         self.power_up = None
         self.next_power_up_spawn_time = self.mode_start_time + random.uniform(8.0, 12.0)
+        # pixel positions for free movement mode (centre of grid cells)
+        self.snake_pixels = [
+            (x * self.grid_size + self.grid_size // 2, y * self.grid_size + self.grid_size // 2)
+            for x, y in self.snake
+        ]
 
     def process_event(self, event):
         if event.type == pygame.QUIT:
@@ -484,12 +492,16 @@ class SnakeGame:
         if new_direction is not None:
             self._set_next_direction(new_direction)
 
+    def set_runtime_stats(self, camera_fps: float, gesture: Optional[str], finger_pos: Optional[Tuple[float, float]] = None):
+        """Called every frame from the manager with camera stats and optional finger position (normalised).
+        """
+        self.camera_fps = max(0.0, float(camera_fps))
+        self.gesture_indicator = gesture if gesture else "None"
+        self.camera_finger_pos = finger_pos
+
     def set_speed_boost(self, boost: bool):
         self.camera_speed_boost = bool(boost)
 
-    def set_runtime_stats(self, camera_fps: float, gesture: Optional[str]):
-        self.camera_fps = max(0.0, float(camera_fps))
-        self.gesture_indicator = gesture if gesture else "None"
 
     def get_current_speed(self) -> int:
         speed = float(self.base_speed)
@@ -599,39 +611,101 @@ class SnakeGame:
         if self.paused:
             return
 
-        self.direction = self.next_direction
+        # Camera-driven free movement (pixel-based)
+        if self.camera_free_movement and self.camera_finger_pos is not None and hasattr(self, "snake_pixels") and len(self.snake_pixels) > 0:
+            # head pixel position
+            head_px_x, head_px_y = self.snake_pixels[0]
 
-        head_x, head_y = self.snake[0]
-        dx, dy = self.direction.value
-        new_head = (head_x + dx, head_y + dy)
+            target_x = max(0.0, min(1.0, self.camera_finger_pos[0])) * self.width
+            target_y = max(0.0, min(1.0, self.camera_finger_pos[1])) * self.height
 
-        wall_hit = (
-            new_head[0] < 0
-            or new_head[0] >= self.grid_width
-            or new_head[1] < 0
-            or new_head[1] >= self.grid_height
-        )
-        body_hit = new_head in self.snake
-        obstacle_hit = new_head in self.obstacles
+            vx = target_x - head_px_x
+            vy = target_y - head_px_y
+            dist = math.hypot(vx, vy)
 
-        if wall_hit or body_hit or obstacle_hit:
-            if self._handle_collision(new_head):
-                self._set_game_over()
-            return
+            if dist > 1e-3:
+                nx = vx / dist
+                ny = vy / dist
+                pixels_per_step = self.grid_size * (self.get_current_speed() / 8.0)
+                move_x = nx * pixels_per_step
+                move_y = ny * pixels_per_step
+            else:
+                move_x = move_y = 0.0
 
-        self.snake.insert(0, new_head)
+            new_head_px = (head_px_x + move_x, head_px_y + move_y)
 
-        consumed_food = None
-        for food in self.food_items:
-            if food["position"] == new_head:
-                consumed_food = food
-                break
+            # Convert to grid cell for collisions and game logic
+            new_head_cell = (int(new_head_px[0] // self.grid_size), int(new_head_px[1] // self.grid_size))
+            current_head_cell = self.snake[0]
+
+            if new_head_cell == current_head_cell:
+                self.snake_pixels[0] = new_head_px
+                return
+
+            wall_hit = (
+                new_head_cell[0] < 0
+                or new_head_cell[0] >= self.grid_width
+                or new_head_cell[1] < 0
+                or new_head_cell[1] >= self.grid_height
+            )
+            body_hit = new_head_cell in self.snake[1:]
+            obstacle_hit = new_head_cell in self.obstacles
+
+            if wall_hit or body_hit or obstacle_hit:
+                if self._handle_collision(new_head_cell):
+                    self._set_game_over()
+                return
+
+            # insert new head at pixel and logical cell lists
+            self.snake_pixels.insert(0, new_head_px)
+            self.snake.insert(0, new_head_cell)
+
+            consumed_food = None
+            for food in self.food_items:
+                if food["position"] == new_head_cell:
+                    consumed_food = food
+                    break
+        else:
+            # Grid-based movement (original behaviour)
+            self.direction = self.next_direction
+
+            head_x, head_y = self.snake[0]
+            dx, dy = self.direction.value
+            new_head = (head_x + dx, head_y + dy)
+
+            wall_hit = (
+                new_head[0] < 0
+                or new_head[0] >= self.grid_width
+                or new_head[1] < 0
+                or new_head[1] >= self.grid_height
+            )
+            body_hit = new_head in self.snake
+            obstacle_hit = new_head in self.obstacles
+
+            if wall_hit or body_hit or obstacle_hit:
+                if self._handle_collision(new_head):
+                    self._set_game_over()
+                return
+
+            self.snake.insert(0, new_head)
+            # also keep snake_pixels in sync for drawing
+            if hasattr(self, "snake_pixels"):
+                new_head_px = (new_head[0] * self.grid_size + self.grid_size // 2,
+                               new_head[1] * self.grid_size + self.grid_size // 2)
+                self.snake_pixels.insert(0, new_head_px)
+
+            consumed_food = None
+            for food in self.food_items:
+                if food["position"] == new_head:
+                    consumed_food = food
+                    break
 
         if consumed_food is not None:
             self.score += consumed_food["points"]
             self._update_high_score_if_needed()
             self.growth_pending += consumed_food["growth"]
-            self.add_particle_effect(new_head[0], new_head[1], color=consumed_food["color"])
+            head_cell = self.snake[0]
+            self.add_particle_effect(head_cell[0], head_cell[1], color=consumed_food["color"])
             self.food_items.remove(consumed_food)
 
             replacement = self._spawn_food_item()
@@ -644,16 +718,21 @@ class SnakeGame:
             if random.random() < 0.18:
                 self._spawn_power_up(now, force=True)
 
-        if self.power_up is not None and self.power_up["position"] == new_head:
+        if self.power_up is not None and self.power_up["position"] == self.snake[0]:
             self._consume_power_up(self.power_up)
-            self.add_particle_effect(new_head[0], new_head[1], color=self.power_up["color"])
+            head_cell = self.snake[0]
+            self.add_particle_effect(head_cell[0], head_cell[1], color=self.power_up["color"])
             self.power_up = None
             self.next_power_up_spawn_time = now + random.uniform(8.0, 12.0)
 
         if self.growth_pending > 0:
             self.growth_pending -= 1
         else:
-            self.snake.pop()
+            # always keep both lists in sync
+            if hasattr(self, "snake_pixels") and len(self.snake_pixels) > 0:
+                self.snake_pixels.pop()
+            if len(self.snake) > 0:
+                self.snake.pop()
 
     def _draw_misty_background(self):
         # Soft vertical gradient
@@ -709,9 +788,19 @@ class SnakeGame:
         border_color = skin["border"]
         eye_color = skin["eye"]
 
-        for index, (x, y) in enumerate(self.snake):
-            px = x * self.grid_size + self.grid_size // 2
-            py = y * self.grid_size + self.grid_size // 2
+        # use snake_pixels if in camera free movement and lists are synced, otherwise compute from grid
+        if self.camera_free_movement and hasattr(self, "snake_pixels") and len(self.snake_pixels) == len(self.snake) and len(self.snake_pixels) > 0:
+            iter_seq = list(self.snake_pixels)
+        elif hasattr(self, "snake_pixels") and len(self.snake_pixels) == len(self.snake) and len(self.snake_pixels) > 0:
+            iter_seq = list(self.snake_pixels)
+        else:
+            # fallback: compute from grid cells
+            iter_seq = [
+                (x * self.grid_size + self.grid_size // 2, y * self.grid_size + self.grid_size // 2)
+                for (x, y) in self.snake
+            ]
+
+        for index, (px, py) in enumerate(iter_seq):
 
             scale = 1.0
             if self.growth_pending > 0 and index == 0:
@@ -720,15 +809,15 @@ class SnakeGame:
             radius = int((self.grid_size // 2 - 2) * scale)
             color = head_color if index == 0 else body_color
             # Soft shadow
-            pygame.draw.circle(self.screen, (180, 185, 190), (px, py + 3), radius + 2)
-            pygame.draw.circle(self.screen, color, (px, py), radius)
-            pygame.draw.circle(self.screen, border_color, (px, py), radius, 2)
+            pygame.draw.circle(self.screen, (180, 185, 190), (int(px), int(py + 3)), radius + 2)
+            pygame.draw.circle(self.screen, color, (int(px), int(py)), radius)
+            pygame.draw.circle(self.screen, border_color, (int(px), int(py)), radius, 2)
 
             if index == 0:
                 # Eyes
                 eye_offset = radius // 2
-                pygame.draw.circle(self.screen, eye_color, (px - eye_offset // 2, py - eye_offset // 2), 3)
-                pygame.draw.circle(self.screen, eye_color, (px + eye_offset // 2, py - eye_offset // 2), 3)
+                pygame.draw.circle(self.screen, eye_color, (int(px - eye_offset // 2), int(py - eye_offset // 2)), 3)
+                pygame.draw.circle(self.screen, eye_color, (int(px + eye_offset // 2), int(py - eye_offset // 2)), 3)
 
     def _draw_food_items(self):
         now = time.time()
