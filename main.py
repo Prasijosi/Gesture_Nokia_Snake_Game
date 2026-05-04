@@ -3,7 +3,11 @@ import time
 import cv2
 import pygame
 from gesture_controller import GestureController
+from latency_reporter import LatencyReporter
 from snake_game import GameState, SnakeGame
+
+ENABLE_CAMERA_FREE_MOVEMENT = False
+CAMERA_SLEEP_SEC = 0.002
 
 
 class GameManager:
@@ -14,6 +18,10 @@ class GameManager:
         self.running = True
         self.gesture_thread = None
         self.camera_enabled = False
+
+        self.latency_reporter = LatencyReporter()
+        self.last_input_time = None
+        self.input_lock = threading.Lock()
 
         # Gesture state shared with the game loop.
         self.current_gesture = None
@@ -31,6 +39,7 @@ class GameManager:
 
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return True
 
     def gesture_detection_loop(self):
@@ -47,6 +56,12 @@ class GameManager:
             # also store the predicted fingertip (normalised 0..1)
             self.current_finger = getattr(self.gesture_controller, "last_predicted_tip", None)
 
+            with self.input_lock:
+                if self.current_finger is None:
+                    self.last_input_time = None
+                else:
+                    self.last_input_time = time.perf_counter()
+
             now = time.time()
             dt = max(1e-6, now - previous_frame_time)
             previous_frame_time = now
@@ -60,7 +75,7 @@ class GameManager:
                 self.running = False
                 break
 
-            time.sleep(0.01)
+            time.sleep(CAMERA_SLEEP_SEC)
 
     def run(self):
         """Main application loop."""
@@ -69,8 +84,8 @@ class GameManager:
         if self.camera_enabled:
             self.gesture_thread = threading.Thread(target=self.gesture_detection_loop, daemon=True)
             self.gesture_thread.start()
-            # when camera is active prefer free pixel-based movement
-            self.game.camera_free_movement = True
+            # default to drag-to-steer unless explicitly enabled
+            self.game.camera_free_movement = ENABLE_CAMERA_FREE_MOVEMENT
 
         print("Nokia Snake Game Started")
         print("Mouse: menu and buttons")
@@ -89,6 +104,14 @@ class GameManager:
 
             # pass finger position for optional free movement
             self.game.set_runtime_stats(self.camera_fps, self.current_gesture, self.current_finger)
+
+            if self.camera_enabled:
+                with self.input_lock:
+                    last_input = self.last_input_time
+                input_age_ms = None
+                if last_input is not None:
+                    input_age_ms = max(0.0, (time.perf_counter() - last_input) * 1000.0)
+                self.latency_reporter.record(self.camera_fps, input_age_ms)
 
             if self.game.game_state == GameState.PLAYING:
                 if self.current_gesture:
@@ -117,6 +140,7 @@ class GameManager:
             self.cap.release()
 
         self.gesture_controller.close()
+        self.latency_reporter.finalize()
         cv2.destroyAllWindows()
         self.game.quit()
 

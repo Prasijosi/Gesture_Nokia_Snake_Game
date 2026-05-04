@@ -636,6 +636,11 @@ class SnakeGame:
 
             # Convert to grid cell for collisions and game logic
             new_head_cell = (int(new_head_px[0] // self.grid_size), int(new_head_px[1] // self.grid_size))
+            current_head_cell = self.snake[0]
+
+            if new_head_cell == current_head_cell:
+                self.snake_pixels[0] = new_head_px
+                return
 
             wall_hit = (
                 new_head_cell[0] < 0
@@ -643,7 +648,7 @@ class SnakeGame:
                 or new_head_cell[1] < 0
                 or new_head_cell[1] >= self.grid_height
             )
-            body_hit = new_head_cell in self.snake
+            body_hit = new_head_cell in self.snake[1:]
             obstacle_hit = new_head_cell in self.obstacles
 
             if wall_hit or body_hit or obstacle_hit:

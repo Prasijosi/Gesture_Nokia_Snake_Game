@@ -1,14 +1,12 @@
 """
 Gesture recognition with MediaPipe hand tracking.
-Now directly tracks the index finger tip and returns its normalized position.
-Also provides directional gestures (UP/DOWN/LEFT/RIGHT) based on finger movement
-for compatibility with the original control scheme.
+Drag-to-steer: set an anchor when the hand appears, then steer based on the
+dominant displacement axis once the drag exceeds the threshold.
 """
 
 import math
 import os
 import urllib.request
-from collections import deque
 from typing import Optional, Tuple
 
 import cv2
@@ -16,6 +14,8 @@ import numpy as np
 from mediapipe import Image as MPImage, ImageFormat
 from mediapipe.tasks.python.core.base_options import BaseOptions
 from mediapipe.tasks.python.vision.hand_landmarker import HandLandmarker, HandLandmarkerOptions
+
+from gesture_tracking import DragToSteerTracker, ema_alpha_from_frames
 
 
 HAND_LANDMARKER_MODEL_URL = (
@@ -38,10 +38,6 @@ HAND_CONNECTIONS = [
     (0, 17), (17, 18), (18, 19), (19, 20),
     (5, 9), (9, 13), (13, 17),
 ]
-
-# Minimum movement (normalised) before a new direction is emitted
-DIRECTION_THRESHOLD = 0.03
-
 
 class LandmarkPoint:
     def __init__(self, x: float, y: float, z: float):
@@ -80,12 +76,9 @@ class GestureController:
         )
         self.hands = HandLandmarker.create_from_options(options)
 
-        # Smoothing for finger position
-        self.finger_history: deque = deque(maxlen=smoothing_frames)
-
-        # Direction state (for compatibility with old gesture output)
-        self._last_finger_pos: Optional[Tuple[float, float]] = None
-        self.current_direction: Optional[str] = None
+        # Drag-to-steer tracker (anchor + EMA smoothing)
+        ema_alpha = ema_alpha_from_frames(smoothing_frames)
+        self.drag_tracker = DragToSteerTracker(ema_alpha=ema_alpha)
         self.pause_cooldown = 0
 
         # Expose the last predicted tip for main.py
@@ -94,13 +87,6 @@ class GestureController:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-
-    def _smooth_finger(self, raw_x: float, raw_y: float) -> Tuple[float, float]:
-        """Apply moving average to finger coordinates."""
-        self.finger_history.append((raw_x, raw_y))
-        avg_x = np.mean([p[0] for p in self.finger_history])
-        avg_y = np.mean([p[1] for p in self.finger_history])
-        return avg_x, avg_y
 
     def _draw_hand_landmarks(self, frame: np.ndarray, hand_landmarks) -> None:
         h, w = frame.shape[:2]
@@ -119,33 +105,6 @@ class GestureController:
         fx, fy = int(finger_pos[0] * w), int(finger_pos[1] * h)
         cv2.circle(frame, (fx, fy), 15, (0, 255, 255), 2)
         cv2.circle(frame, (fx, fy), 5, (0, 255, 255), -1)
-
-    def _gesture_from_finger_movement(self, finger_pos: Tuple[float, float]) -> Optional[str]:
-        """
-        Convert finger movement into a direction string (UP/DOWN/LEFT/RIGHT)
-        for compatibility with the original gesture-based controls.
-        """
-        if self._last_finger_pos is None:
-            self._last_finger_pos = finger_pos
-            return None
-
-        dx = finger_pos[0] - self._last_finger_pos[0]
-        dy = finger_pos[1] - self._last_finger_pos[1]
-        dist = math.hypot(dx, dy)
-
-        if dist < DIRECTION_THRESHOLD:
-            return self.current_direction
-
-        # Determine dominant axis
-        if abs(dx) >= abs(dy):
-            direction = "RIGHT" if dx > 0 else "LEFT"
-        else:
-            direction = "DOWN" if dy > 0 else "UP"
-
-        # Update last position to avoid re‑triggering the same direction
-        self._last_finger_pos = finger_pos
-        self.current_direction = direction
-        return direction
 
     def _is_pinching(self, hand_landmarks) -> bool:
         thumb_tip = hand_landmarks[THUMB_TIP]
@@ -185,17 +144,17 @@ class GestureController:
         if results.hand_landmarks:
             landmarks = results.hand_landmarks[0]
 
-            # --- Index finger tip extraction and smoothing ---
+            # --- Index finger tip extraction ---
             raw_x = landmarks[INDEX_FINGER_TIP].x
             raw_y = landmarks[INDEX_FINGER_TIP].y
-            smooth_x, smooth_y = self._smooth_finger(raw_x, raw_y)
-            finger_pos = (smooth_x, smooth_y)
+            direction = self.drag_tracker.update((raw_x, raw_y))
+            finger_pos = self.drag_tracker.get_smoothed_pos() or (raw_x, raw_y)
             self.last_predicted_tip = finger_pos
 
             # Draw finger cursor
             self._draw_finger_cursor(frame, finger_pos)
 
-            # --- Gesture recognition (for compatibility) ---
+            # --- Gesture recognition (drag-to-steer + pause) ---
             if self.pause_cooldown > 0:
                 self.pause_cooldown -= 1
 
@@ -203,25 +162,21 @@ class GestureController:
                 gesture = "PAUSE"
                 self.pause_cooldown = 24
             else:
-                gesture = self._gesture_from_finger_movement(finger_pos)
+                gesture = direction
 
             pinch = self._is_pinching(landmarks)
             self._draw_hand_landmarks(frame, landmarks)
 
         else:
             # No hand – reset state
-            self.finger_history.clear()
-            self._last_finger_pos = None
-            self.current_direction = None
+            self.drag_tracker.update(None)
             self.pause_cooldown = 0
             self.last_predicted_tip = None
 
         return gesture, pinch, frame
 
     def reset_gesture_state(self):
-        self.finger_history.clear()
-        self._last_finger_pos = None
-        self.current_direction = None
+        self.drag_tracker.reset()
         self.pause_cooldown = 0
         self.last_predicted_tip = None
 
