@@ -10,7 +10,7 @@ A classic Nokia Snake game controlled by hand gestures via webcam using MediaPip
 
 ## Features
 
-### 🎮 Classic Nokia Snake Game
+### Classic Nokia Snake Game
 - **Authentic Nokia-style graphics** with green monochrome theme
 - **Grid-based movement** with rectangular snake segments
 - **Growing snake** mechanics - snake grows when eating fruit
@@ -18,14 +18,14 @@ A classic Nokia Snake game controlled by hand gestures via webcam using MediaPip
 - **Score tracking** - earn points by eating fruit
 - **Smooth animations** with particle effects
 
-### 👋 Hand Gesture Controls
+### Hand Gesture Controls
 - **MediaPipe hand tracking** for real-time gesture recognition
-- **Swipe gestures** - move hand up/down/left/right to control snake direction
+- **Swipe & Drag-to-steer** - intuitive drag-to-steer tracking with proportional EMA smoothing to control snake direction
 - **Pinch gesture** - bring thumb and index finger together for speed boost
 - **Visual feedback** - see hand landmarks and current direction
 - **Automatic model download** - required ML models are downloaded on first run
 
-### 🪟 Dual Window Interface
+### Dual Window Interface
 - **Game Window** - Classic Nokia Snake gameplay
 - **Gesture Window** - Live webcam feed with hand tracking visualization
 
@@ -74,23 +74,32 @@ python main.py
 - **Show UP gesture** when game over - Restart game
 - **Q** in gesture window - Quit
 
-## Game Mechanics
+## Game Content & Mechanics
 
-### Snake Behavior
-- Snake moves continuously in the current direction
-- Cannot move directly backward (prevents instant death)
-- Speed increases when pinch gesture is detected
-- Snake grows by one segment when eating fruit
+### Game Modes & Maps
+- **Classic**: The original Nokia snake experience with an open map.
+- **Time Attack**: Race against the clock to eat as many fruits as possible.
+- **Obstacle**: Navigate around randomly placed static obstacles that block your path.
+- **Maze**: Challenge yourself in a predefined maze map with complex wall layouts.
 
-### Scoring
-- **+10 points** per fruit eaten
-- Score displayed in top-left corner
-- Final score shown on game over screen
+### Custom Skins
+- Cycle between different visual aesthetics in the main menu:
+  - **Classic**: The nostalgic Nokia green monochrome.
+  - **Neon**: Bright, vibrant cyber-style neon colors.
+  - **Ice**: Cool blue, frosty color palette.
 
-### Game Over Conditions
-- Snake hits the wall boundaries
-- Snake collides with its own body
-- Show UP gesture to restart
+### Immersive Audio
+Interactive sound effects are included in the `sounds/` directory:
+- **Eating Fruit**: `eat_fruit.wav` / `eatfruit.mp3`
+- **Game Over**: `game_over.wav` / `GameOver.mp3`
+- **Power Up / Menu**: `button_click.wav` / `GameStart.mp3`
+(Sound can be toggled on/off from the main menu)
+
+### Snake Behavior & Rules
+- **Movement**: Snake moves continuously in the current direction. Cannot move directly backward.
+- **Speed Boost**: Speed increases when a pinch gesture is detected.
+- **Growth**: Snake grows by one segment and earns **+10 points** per fruit eaten.
+- **Game Over**: Triggered when hitting wall boundaries or colliding with its own body. Show an **UP gesture** to restart.
 
 ## File Structure
 
@@ -130,8 +139,9 @@ nokia-snake-gesture-control/
 
 ### Architecture
 - **Threaded design** - game and gesture detection run in parallel
-- **Modular code** - separate classes for game logic and gesture control
+- **Modular code** - separate packages for `game` logic, `control` tracking, `ui` management, and `utils`
 - **Event-driven** - gestures trigger game state changes
+- **Performance monitoring** - automatic latency and FPS tracking written to `latency_reports/`
 
 ## Troubleshooting
 
@@ -159,20 +169,20 @@ Failed to install package
 ## Customization
 
 ### Adjust Gesture Sensitivity
-In `gesture_controller.py`, modify:
+In `snake_game/control/gesture_tracking.py`, modify:
 ```python
-self.gesture_threshold = 0.05  # Lower = more sensitive
+DRAG_THRESHOLD = 0.05  # Lower = more sensitive
 ```
 
 ### Change Game Speed
-In `snake_game.py`, modify:
+In `snake_game/game/core.py`, modify:
 ```python
 self.base_speed = 8      # Normal speed (FPS)
 self.boost_speed = 15    # Boost speed (FPS)
 ```
 
 ### Modify Colors
-In `snake_game.py`, change color constants:
+In `snake_game/game/core.py`, change color constants:
 ```python
 self.NOKIA_GREEN = (155, 188, 15)  # Snake body color
 self.LIGHT_GREEN = (204, 255, 51)  # Snake head color
@@ -181,15 +191,24 @@ self.LIGHT_GREEN = (204, 255, 51)  # Snake head color
 ## Development
 
 ### Adding New Gestures
-1. Extend `detect_gestures()` in `gesture_controller.py`
+1. Extend `detect_gestures()` in `snake_game/control/gesture_controller.py`
 2. Add gesture recognition logic using MediaPipe landmarks
 3. Return new gesture type in the function
 4. Handle new gesture in `main.py` game loop
 
 ### Modifying Game Mechanics
-1. Edit game logic in `snake_game.py`
+1. Edit game logic in `snake_game/game/core.py`
 2. Add new features to the `SnakeGame` class
 3. Update the drawing methods for visual changes
+
+### Testing
+Automated tests are available for the gesture tracking algorithms and core game logic.
+- Run tests: `python -m unittest discover test/`
+- `test_drag_to_steer.py`: Verifies anchor setting, directional commits, and threshold handling.
+- `test_free_movement.py`: Validates the optional camera free movement coordinates and bounds.
+
+### Performance Metrics
+The game logs input latency and camera FPS into `latency_reports/`. Review these to monitor game responsiveness.
 
 
 ## Credits
@@ -202,4 +221,4 @@ self.LIGHT_GREEN = (204, 255, 51)  # Snake head color
 ---
 
 
-**Enjoy playing Nokia Snake with hand gestures! 🐍👋**
+**Enjoy playing Nokia Snake with hand gestures !**
