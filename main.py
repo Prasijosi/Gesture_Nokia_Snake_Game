@@ -136,10 +136,10 @@ class GameManager:
                     input_age_ms = max(0.0, (time.perf_counter() - last_input) * 1000.0)
                 self.latency_reporter.record(self.camera_fps, input_age_ms)
 
-            if self.game.game_state == GameState.PLAYING:
-                if self.current_gesture:
-                    self.game.handle_gesture(self.current_gesture)
+            if self.current_gesture:
+                self.game.handle_gesture(self.current_gesture)
 
+            if self.game.game_state == GameState.PLAYING:
                 self.game.set_speed_boost(self.camera_enabled and self.is_speed_boost)
 
                 step_interval = 1.0 / self.game.get_current_speed()

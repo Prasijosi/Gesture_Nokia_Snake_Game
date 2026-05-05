@@ -468,6 +468,12 @@ class SnakeGame:
                 self.pause_started_at = None
 
     def handle_gesture(self, gesture: str):
+        if self.game_state == GameState.GAME_OVER:
+            if gesture == "UP":
+                self.reset_game()
+                self.game_state = GameState.PLAYING
+            return
+
         if self.game_state != GameState.PLAYING:
             return
 
